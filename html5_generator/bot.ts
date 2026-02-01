@@ -21,7 +21,7 @@ import { DB, prisma } from "./db";
 import { CONFIG } from "./config";
 import { GAMES, CATEGORIES, ASSETS, GEOS } from "./constants";
 import fs from "fs";
-import express, { Request, Response, NextFunction } from "express";
+import express = require("express");
 import basicAuth from "basic-auth";
 import path from "path";
 
