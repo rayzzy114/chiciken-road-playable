@@ -68,6 +68,29 @@ export function createAdminApp() {
         res.render("admin", DB.serialize({ stats, logs, users, orders, page }));
     });
 
+    app.post("/admin/add-balance", express.urlencoded({ extended: true }), async (req, res) => {
+        const { userId, amount } = req.body;
+        const targetId = BigInt(userId);
+        const addAmount = parseFloat(amount);
+
+        if (!isNaN(addAmount)) {
+            try {
+                await prisma.user.update({
+                    where: { id: targetId },
+                    data: { walletBalance: { increment: addAmount } }
+                });
+                await DB.logAction(targetId, "admin_panel_add_balance", `Added $${addAmount}`);
+                
+                // Notify user via bot
+                const bot = new Bot<MyContext>(CONFIG.BOT_TOKEN);
+                try {
+                    await bot.api.sendMessage(Number(targetId), `💰 Ваш баланс пополнен на <b>$${addAmount}</b> через админ-панель!`, { parse_mode: "HTML" });
+                } catch (e) { console.error("Could not notify user", e); }
+            } catch (e) { console.error("Error updating balance", e); }
+        }
+        res.redirect("/admin");
+    });
+
     app.get("/", (req, res) => {
         res.redirect("/admin");
     });
@@ -574,6 +597,11 @@ function registerHandlers(bot: Bot<MyContext>) {
         const profilePath = path.join(__dirname, "assets", "profile.png");
         const cacheKey = ASSETS.PROFILE;
 
+        const keyboard = new InlineKeyboard()
+            .text("💰 Пополнить баланс", "top_up_balance")
+            .row()
+            .text("🏠 Главное меню", "main_menu");
+
         try {
             // Delete the menu message to avoid cluttering
             try { await ctx.deleteMessage(); } catch {}
@@ -584,23 +612,93 @@ function registerHandlers(bot: Bot<MyContext>) {
                 await ctx.replyWithPhoto(cachedId, {
                     caption: msgText,
                     parse_mode: "HTML",
-                    reply_markup: mainMenuNav
+                    reply_markup: keyboard
                 });
             } else if (fs.existsSync(profilePath)) {
                 const msg = await ctx.replyWithPhoto(new InputFile(profilePath), {
                     caption: msgText,
                     parse_mode: "HTML",
-                    reply_markup: mainMenuNav
+                    reply_markup: keyboard
                 });
                 if (msg.photo && msg.photo.length > 0) {
                     await DB.setAsset(cacheKey, msg.photo[msg.photo.length - 1].file_id);
                 }
             } else {
-                await ctx.reply(msgText, { parse_mode: "HTML", reply_markup: mainMenuNav });
+                await ctx.reply(msgText, { parse_mode: "HTML", reply_markup: keyboard });
             }
         } catch (e) {
             console.error("Error sending profile:", e);
-            await ctx.reply(msgText, { parse_mode: "HTML", reply_markup: mainMenuNav });
+            await ctx.reply(msgText, { parse_mode: "HTML", reply_markup: keyboard });
+        }
+    });
+
+    bot.callbackQuery("top_up_balance", async (ctx) => {
+        if (!ctx.from) return;
+        await ctx.answerCallbackQuery();
+        
+        const msg = "<b>Пополнение баланса</b>\n\n" +
+            "Для пополнения баланса переведите средства на один из кошельков ниже:\n\n" +
+            "🔹 <b>USDT TRC-20:</b>\n<code>" + CONFIG.WALLETS.usdt_trc20 + "</code>\n\n" +
+            "🔸 <b>BTC:</b>\n<code>" + CONFIG.WALLETS.btc + "</code>\n\n" +
+            "После оплаты нажмите кнопку <b>«Я оплатил»</b>. Мы проверим транзакцию и начислим баланс.";
+        
+        await editOrReply(ctx, msg, new InlineKeyboard()
+            .text("✅ Я оплатил", "i_paid")
+            .row()
+            .text("🔙 Назад", "profile"));
+    });
+
+    bot.callbackQuery("i_paid", async (ctx) => {
+        if (!ctx.from) return;
+        await ctx.answerCallbackQuery();
+        
+        await DB.logAction(ctx.from.id, "click_i_paid");
+        
+        // Notify user
+        await editOrReply(ctx, "<b>Заявка отправлена!</b>\n\nАдминистратор скоро проверит платеж и зачислит средства на ваш баланс. Обычно это занимает от 5 до 30 минут.", new InlineKeyboard().text("🏠 Главное меню", "main_menu"));
+        
+        // Notify admin
+        const adminMsg = "🔔 <b>Новое уведомление об оплате!</b>\n\n" +
+            "<b>От:</b> " + (ctx.from.first_name || "Без имени") + " (@" + (ctx.from.username || "нет") + ")\n" +
+            "<b>ID:</b> <code>" + ctx.from.id + "</code>\n\n" +
+            "Проверьте входящие транзакции.";
+        
+        try {
+            await bot.api.sendMessage(CONFIG.ADMIN_TELEGRAM_ID, adminMsg, { parse_mode: "HTML" });
+        } catch (e) {
+            console.error("Failed to notify admin:", e);
+        }
+    });
+
+    // --- ADMIN COMMANDS ---
+    bot.command("addbalance", async (ctx) => {
+        if (!ctx.from || ctx.from.id !== CONFIG.ADMIN_TELEGRAM_ID) return;
+        
+        const args = ctx.match.split(" ");
+        if (args.length < 2) {
+            return ctx.reply("Использование: /addbalance <userId> <amount>");
+        }
+        
+        const targetUserId = BigInt(args[0]);
+        const amount = parseFloat(args[1]);
+        
+        if (isNaN(amount)) return ctx.reply("Сумма должна быть числом.");
+        
+        try {
+            await prisma.user.update({
+                where: { id: targetUserId },
+                data: { walletBalance: { increment: amount } }
+            });
+            
+            await DB.logAction(targetUserId, "admin_add_balance", `Added $${amount}`);
+            await ctx.reply(`✅ Баланс пользователя ${targetUserId} пополнен на $${amount}`);
+            
+            // Notify user
+            try {
+                await bot.api.sendMessage(Number(targetUserId), `💰 Ваш баланс пополнен на <b>$${amount}</b>!`, { parse_mode: "HTML" });
+            } catch {}
+        } catch (e) {
+            await ctx.reply("Ошибка: пользователь не найден или ошибка БД.");
         }
     });
 
