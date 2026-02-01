@@ -1,0 +1,65 @@
+generator client {
+  provider      = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:../../data/bot.db"
+}
+
+model User {
+  id              BigInt   @id // Telegram ID can be large
+  username        String?
+  firstName       String?
+  walletBalance   Float    @default(0)
+  subscriptionEnd DateTime @default(now()) // Expiry date
+  createdAt       DateTime @default(now())
+
+  // Referrals logic
+  referrerId      BigInt?  // Who invited this user
+  referrer        User?    @relation("Referrals", fields: [referrerId], references: [id])
+  referrals       User[]   @relation("Referrals")
+
+  orders          Order[]
+  logs            Log[]
+
+  @@map("users")
+}
+
+model AssetCache {
+  key       String   @id
+  fileId    String
+  updatedAt DateTime @updatedAt
+  
+  @@map("asset_cache")
+}
+
+model Order {
+  orderId         String   @id
+  userId          BigInt
+  user            User     @relation(fields: [userId], references: [id])
+  
+  gameType        String
+  themeId         String
+  configJson      String   // Stored as JSON string
+  
+  status          String   @default("pending") // pending, paid_single, paid_sub
+  amount          Int      @default(0)
+  discountApplied Int      @default(0)
+  
+  createdAt       DateTime @default(now())
+
+  @@map("orders")
+}
+
+model Log {
+  id        Int      @id @default(autoincrement())
+  userId    BigInt
+  user      User     @relation(fields: [userId], references: [id])
+  
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+
+  @@map("logs")
+}

@@ -43,67 +43,6 @@ function getSessionConfig(ctx: MyConversationContext): OrderConfig {
     return ctx.session.config;
 }
 
-// --- ADMIN SERVER (SIMPLE) ---
-export function createAdminApp() {
-    const app = express();
-    app.set("view engine", "ejs");
-    app.set("views", path.join(__dirname, "views"));
-
-    app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
-        const user = basicAuth(req);
-        if (!user || user.name !== CONFIG.ADMIN_USER || user.pass !== CONFIG.ADMIN_PASS) {
-            res.set("WWW-Authenticate", 'Basic realm="Admin Area"');
-            return res.status(401).send();
-        }
-        next();
-    });
-
-    app.get("/admin", async (req: express.Request, res: express.Response) => {
-        const stats = await DB.getAdminStats();
-        const logs = await DB.getLastLogs(50);
-        // Pagination: default page 1, limit 50
-        const page = Number(req.query.page) || 1;
-        const users = await DB.getAllUsers(page, 50);
-        const orders = await DB.getAllOrders();
-        res.render("admin", DB.serialize({ stats, logs, users, orders, page }));
-    });
-
-    app.post("/admin/add-balance", express.urlencoded({ extended: true }), async (req: express.Request, res: express.Response) => {
-        const { userId, amount } = req.body;
-        const targetId = BigInt(userId);
-        const addAmount = parseFloat(amount);
-
-        if (!isNaN(addAmount)) {
-            try {
-                await prisma.user.update({
-                    where: { id: targetId },
-                    data: { walletBalance: { increment: addAmount } }
-                });
-                await DB.logAction(targetId, "admin_panel_add_balance", `Added $${addAmount}`);
-                
-                // Notify user via bot
-                const bot = new Bot<MyContext>(CONFIG.BOT_TOKEN);
-                try {
-                    await bot.api.sendMessage(Number(targetId), `💰 Ваш баланс пополнен на <b>$${addAmount}</b> через админ-панель!`, { parse_mode: "HTML" });
-                } catch (e) { console.error("Could not notify user", e); }
-            } catch (e) { console.error("Error updating balance", e); }
-        }
-        res.redirect("/admin");
-    });
-
-    app.get("/", (req: express.Request, res: express.Response) => {
-        res.redirect("/admin");
-    });
-
-    return app;
-}
-
-export function startAdminServer(app = createAdminApp()) {
-    return app.listen(CONFIG.PORT, () => {
-        console.log("Admin Panel started on port " + CONFIG.PORT);
-    });
-}
-
 // --- BOT SETUP ---
 export function createBot() {
     const bot = new Bot<MyContext>(CONFIG.BOT_TOKEN);
@@ -720,8 +659,6 @@ function registerHandlers(bot: Bot<MyContext>) {
 
 export async function start() {
     await cleanupTemp();
-    const app = createAdminApp();
-    startAdminServer(app);
     const bot = createBot();
     registerHandlers(bot);
     void bot.start();
