@@ -49,7 +49,7 @@ export function createAdminApp() {
     app.set("view engine", "ejs");
     app.set("views", path.join(__dirname, "views"));
 
-    app.use((req, res, next) => {
+    app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
         const user = basicAuth(req);
         if (!user || user.name !== CONFIG.ADMIN_USER || user.pass !== CONFIG.ADMIN_PASS) {
             res.set("WWW-Authenticate", 'Basic realm="Admin Area"');
@@ -58,7 +58,7 @@ export function createAdminApp() {
         next();
     });
 
-    app.get("/admin", async (req, res) => {
+    app.get("/admin", async (req: express.Request, res: express.Response) => {
         const stats = await DB.getAdminStats();
         const logs = await DB.getLastLogs(50);
         // Pagination: default page 1, limit 50
@@ -68,7 +68,7 @@ export function createAdminApp() {
         res.render("admin", DB.serialize({ stats, logs, users, orders, page }));
     });
 
-    app.post("/admin/add-balance", express.urlencoded({ extended: true }), async (req, res) => {
+    app.post("/admin/add-balance", express.urlencoded({ extended: true }), async (req: express.Request, res: express.Response) => {
         const { userId, amount } = req.body;
         const targetId = BigInt(userId);
         const addAmount = parseFloat(amount);
@@ -91,7 +91,7 @@ export function createAdminApp() {
         res.redirect("/admin");
     });
 
-    app.get("/", (req, res) => {
+    app.get("/", (req: express.Request, res: express.Response) => {
         res.redirect("/admin");
     });
 
