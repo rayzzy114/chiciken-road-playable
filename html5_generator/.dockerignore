@@ -1,0 +1,10 @@
+node_modules
+data/bot.db*
+sessions
+previews
+library
+temp
+.env
+logs
+*.log
+.git

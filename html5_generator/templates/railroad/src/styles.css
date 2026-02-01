@@ -1,0 +1,215 @@
+body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background-color: #000;
+    font-family: 'Arial', sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+#game-wrapper {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+#ui-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Let clicks pass through to canvas if needed, but buttons will recapture */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+/* Enable pointer events for UI elements */
+.hud-top, .controls-bottom, .center-msg {
+    pointer-events: auto;
+}
+
+.hud-top {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.stat-box {
+    background: rgba(0,0,0,0.6);
+    padding: 10px 20px;
+    border-radius: 12px;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border: 2px solid rgba(255,255,255,0.2);
+}
+
+.stat-box .label {
+    font-size: 12px;
+    opacity: 0.8;
+    text-transform: uppercase;
+}
+
+.stat-box .value {
+    font-size: 24px;
+    font-weight: bold;
+    color: #ffcc00;
+}
+
+.controls-bottom {
+    width: 100%;
+    max-width: 500px;
+    margin: 0 auto 20px;
+    background: rgba(255,255,255,0.1);
+    backdrop-filter: blur(10px);
+    padding: 20px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.2);
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.mode-select {
+    display: flex;
+    gap: 5px;
+    justify-content: center;
+}
+
+.mode-btn {
+    flex: 1;
+    padding: 8px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.2);
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.mode-btn.active {
+    background: #ffcc00;
+    color: #000;
+}
+
+.bet-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 10px;
+    padding: 10px;
+}
+
+.bet-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    background: #444;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+#bet-amount {
+    color: white;
+    font-size: 24px;
+    font-weight: bold;
+    min-width: 60px;
+    text-align: center;
+}
+
+.action-row {
+    display: flex;
+    gap: 10px;
+}
+
+button {
+    touch-action: manipulation;
+}
+
+.primary-btn, .secondary-btn {
+    flex: 1;
+    padding: 15px;
+    border: none;
+    border-radius: 12px;
+    font-size: 20px;
+    font-weight: 900;
+    cursor: pointer;
+    text-transform: uppercase;
+}
+
+.primary-btn {
+    background: linear-gradient(to bottom, #4ade80, #22c55e);
+    color: white;
+    box-shadow: 0 4px 0 #15803d;
+}
+
+.primary-btn:active {
+    transform: translateY(4px);
+    box-shadow: none;
+}
+
+.primary-btn:disabled {
+    background: #555;
+    box-shadow: none;
+    color: #aaa;
+    cursor: not-allowed;
+}
+
+.secondary-btn {
+    background: linear-gradient(to bottom, #f87171, #ef4444);
+    color: white;
+    box-shadow: 0 4px 0 #b91c1c;
+}
+
+.secondary-btn:disabled {
+    background: #555;
+    box-shadow: none;
+    color: #aaa;
+    opacity: 0.5;
+}
+
+/* Landscape Tweaks */
+@media (min-aspect-ratio: 1/1) {
+    #ui-layer {
+        flex-direction: row;
+        align-items: flex-end;
+    }
+    .hud-top {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        width: auto;
+        flex-direction: column;
+        gap: 10px;
+    }
+    .controls-bottom {
+        margin: 0;
+        margin-left: auto;
+        width: 300px;
+    }
+}
