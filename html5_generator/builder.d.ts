@@ -1,8 +1,8 @@
 export interface IOrderConfig {
-    language: string;
-    currency: string;
-    startingBalance: number;
-    themeId: string;
+    language?: string;
+    currency?: string;
+    startingBalance?: number;
+    themeId?: string;
     isWatermarked: boolean;
 }
 
@@ -11,4 +11,4 @@ export interface IOrder {
     config: IOrderConfig;
 }
 
-export function generatePlayable(order: IOrder): string | null;
+export function generatePlayable(order: IOrder): Promise<string | null>;

@@ -57,7 +57,7 @@ export const DB = {
         });
 
         return {
-            ...user,
+            ...(user ?? {}),
             orders_paid: ordersCount,
             referrals_count: referralsCount,
             wallet_balance: user?.walletBalance || 0
@@ -99,6 +99,43 @@ export const DB = {
         await prisma.order.update({
             where: { orderId },
             data: { status, amount, discountApplied: discount }
+        });
+    },
+
+    finalizePaidOrder: async (
+        orderId: string,
+        userId: number,
+        status: string,
+        amount: number,
+        discount: number
+    ) => {
+        return prisma.$transaction(async (tx) => {
+            const order = await tx.order.findUnique({
+                where: { orderId },
+                select: { userId: true, status: true }
+            });
+            if (!order) throw new Error("ORDER_NOT_FOUND");
+            if (order.userId !== BigInt(userId)) throw new Error("ORDER_USER_MISMATCH");
+            if (order.status.startsWith("paid")) throw new Error("ORDER_ALREADY_PAID");
+
+            const user = await tx.user.findUnique({
+                where: { id: BigInt(userId) },
+                select: { walletBalance: true }
+            });
+            if (!user) throw new Error("USER_NOT_FOUND");
+            if (user.walletBalance < amount) throw new Error("INSUFFICIENT_FUNDS");
+
+            await tx.user.update({
+                where: { id: BigInt(userId) },
+                data: { walletBalance: { decrement: amount } }
+            });
+
+            await tx.order.update({
+                where: { orderId },
+                data: { status, amount, discountApplied: discount }
+            });
+
+            return { newBalance: user.walletBalance - amount };
         });
     },
 

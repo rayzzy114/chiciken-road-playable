@@ -1,4 +1,4 @@
-import { Bot, Context, session, SessionFlavor, InlineKeyboard, Keyboard, InputFile } from "grammy";
+import { Bot, Context, session, SessionFlavor, InlineKeyboard, Keyboard, InputFile, type StorageAdapter } from "grammy";
 import { type Conversation, type ConversationFlavor, conversations, createConversation } from "@grammyjs/conversations";
 import { FileAdapter } from "@grammyjs/storage-file";
 import { generatePlayable, cleanupTemp } from "./builder";
@@ -21,8 +21,6 @@ import { DB, prisma } from "./db";
 import { CONFIG } from "./config";
 import { GAMES, CATEGORIES, ASSETS, GEOS } from "./constants";
 import fs from "fs";
-import express = require("express");
-import basicAuth from "basic-auth";
 import path from "path";
 
 type BaseContext = Context & SessionFlavor<SessionData>;
@@ -39,18 +37,29 @@ function ensureSessionsDir() {
 }
 
 function getSessionConfig(ctx: MyConversationContext): OrderConfig {
+    try {
+        if (!ctx.session) ctx.session = createInitialSession();
+    } catch {
+        // Fallback for contexts without session key (e.g., in tests or edge updates)
+        // @ts-ignore
+        ctx.session = createInitialSession();
+    }
     if (!ctx.session.config) ctx.session.config = {};
     return ctx.session.config;
 }
 
 // --- BOT SETUP ---
-export function createBot() {
-    const bot = new Bot<MyContext>(CONFIG.BOT_TOKEN);
+export function createBot(options?: { sessionStorage?: StorageAdapter<SessionData>; botInfo?: unknown; client?: unknown }) {
+    const bot = new Bot<MyContext>(CONFIG.BOT_TOKEN, {
+        botInfo: options?.botInfo as any,
+        client: options?.client as any,
+    });
     ensureSessionsDir();
 
+    const storage = options?.sessionStorage ?? new FileAdapter({ dirName: SESSIONS_DIR });
     bot.use(session<SessionData, Context>({
         initial: createInitialSession,
-        storage: new FileAdapter({ dirName: SESSIONS_DIR }),
+        storage,
     }));
 
     bot.use(conversations());
@@ -102,7 +111,6 @@ async function orderWizard(conversation: MyConversation, ctx: MyConversationCont
     const geoData = geoCtx.callbackQuery.data.replace("geo_", "");
 
     if (geoData === "custom") {
-        const stats = await DB.getUserStats(ctx.from!.id);
         const pendingCount = await prisma.order.count({
             where: { userId: BigInt(ctx.from!.id), status: "custom_pending" }
         });
@@ -163,7 +171,7 @@ async function orderWizard(conversation: MyConversation, ctx: MyConversationCont
     });
 }
 
-function registerHandlers(bot: Bot<MyContext>) {
+export function registerHandlers(bot: Bot<MyContext>) {
     async function showMainMenu(ctx: Context, deletePrevious = false) {
         if (deletePrevious) {
             try { await ctx.deleteMessage(); } catch {}
@@ -404,11 +412,12 @@ function registerHandlers(bot: Bot<MyContext>) {
         await ctx.answerCallbackQuery();
 
         const s = await DB.getUserStats(ctx.from.id);
-        const price = CONFIG.PRICES.single;
+        const disc = getDiscount(s.orders_paid);
+        const minPrice = calcPrice(CONFIG.PRICES.single, disc);
 
-        if (s.wallet_balance < price) {
+        if (s.wallet_balance < minPrice) {
             await ctx.reply(
-                `Недостаточно средств на балансе.\nВаш баланс: $${s.wallet_balance}\nТребуется: $${price}\n\nПожалуйста, пополните счет.`,
+                `Недостаточно средств на балансе.\nВаш баланс: $${s.wallet_balance}\nТребуется: $${minPrice}\n\nПожалуйста, пополните счет.`,
                 {
                     parse_mode: "HTML",
                     reply_markup: new InlineKeyboard().text("🔙 Назад", "delete_this")
@@ -483,20 +492,59 @@ function registerHandlers(bot: Bot<MyContext>) {
         const parsed = parsePayCallback(ctx.callbackQuery.data);
         if (!parsed) return editOrReply(ctx, "Некорректная ссылка оплаты.", withBackToMenu);
 
-        await DB.logAction(ctx.from.id, "pay_click", parsed.type);
-
-        const s = await DB.getUserStats(ctx.from.id);
-        const disc = getDiscount(s.orders_paid);
-        const amount = calcPrice(parsed.type === "sub" ? CONFIG.PRICES.sub : CONFIG.PRICES.single, disc);
-
-        await editOrReply(ctx, "Оплата прошла! Собираю финальный файл...");
-
-        await DB.markPaid(parsed.orderId, "paid_" + parsed.type, amount, disc);
-        await DB.addReferralReward(ctx.from.id, amount);
-        await DB.logAction(ctx.from.id, "pay_success", "$" + amount);
-
         const order = await DB.getOrder(parsed.orderId);
         if (!order) return editOrReply(ctx, "Заказ не найден.", withBackToMenu);
+        if (order.userId !== BigInt(ctx.from.id)) return editOrReply(ctx, "Заказ не найден.", withBackToMenu);
+
+        await DB.logAction(ctx.from.id, "pay_click", parsed.type);
+
+        let alreadyPaid = false;
+        if (order.status.startsWith("paid")) {
+            alreadyPaid = true;
+        }
+
+        if (!alreadyPaid) {
+            const s = await DB.getUserStats(ctx.from.id);
+            const disc = getDiscount(s.orders_paid);
+            const amount = calcPrice(parsed.type === "sub" ? CONFIG.PRICES.sub : CONFIG.PRICES.single, disc);
+
+            if (s.wallet_balance < amount) {
+                return editOrReply(
+                    ctx,
+                    `Недостаточно средств на балансе.\nВаш баланс: $${s.wallet_balance}\nТребуется: $${amount}\n\nПожалуйста, пополните счет.`,
+                    withBackToMenu
+                );
+            }
+
+            let finalized = false;
+            try {
+                await DB.finalizePaidOrder(parsed.orderId, ctx.from.id, "paid_" + parsed.type, amount, disc);
+                finalized = true;
+            } catch (e) {
+                const msg = e instanceof Error ? e.message : "UNKNOWN_ERROR";
+                if (msg === "ORDER_ALREADY_PAID") {
+                    alreadyPaid = true;
+                } else if (msg === "INSUFFICIENT_FUNDS") {
+                    return editOrReply(
+                        ctx,
+                        `Недостаточно средств на балансе.\nВаш баланс: $${s.wallet_balance}\nТребуется: $${amount}\n\nПожалуйста, пополните счет.`,
+                        withBackToMenu
+                    );
+                } else if (msg === "ORDER_NOT_FOUND" || msg === "ORDER_USER_MISMATCH") {
+                    return editOrReply(ctx, "Заказ не найден.", withBackToMenu);
+                } else {
+                    console.error("Payment finalize error:", e);
+                    return editOrReply(ctx, "Ошибка обработки оплаты.", withBackToMenu);
+                }
+            }
+
+            if (finalized) {
+                await DB.addReferralReward(ctx.from.id, amount);
+                await DB.logAction(ctx.from.id, "pay_success", "$" + amount);
+            }
+        }
+
+        await editOrReply(ctx, alreadyPaid ? "Оплата уже подтверждена. Собираю финальный файл..." : "Оплата прошла! Собираю финальный файл...");
 
         // Try to fetch from library first
         const libPath = getLibraryPath(order.gameType, order.config.geoId ?? "en_usd", false);

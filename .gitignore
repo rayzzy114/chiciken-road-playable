@@ -1,2 +1,5 @@
 .gemini-clipboard/
-
+node_modules/
+html5_generator/node_modules/
+html5_generator/templates/railroad/node_modules/
+html5_generator/temp/

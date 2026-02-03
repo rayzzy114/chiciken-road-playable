@@ -51,7 +51,7 @@ export class Game {
 
     this.setupInputs();
     
-    this.app.ticker.add((ticker) => this.update(ticker));
+    this.app.ticker.add((ticker: PIXI.Ticker) => this.update(ticker));
     window.addEventListener("resize", () => this.handleResize());
     this.handleResize();
     this.updateUI();
@@ -158,7 +158,11 @@ export class Game {
       if (source instanceof PIXI.Texture) {
           visual = new PIXI.Sprite(source);
       } else if (source) {
-          visual = new GifSprite({ source }); 
+          try {
+              visual = new GifSprite(source as any);
+          } catch {
+              visual = new PIXI.Sprite(PIXI.Texture.WHITE);
+          }
       } else {
           visual = new PIXI.Sprite(PIXI.Texture.WHITE); // Fallback
       }
