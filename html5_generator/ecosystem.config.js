@@ -2,9 +2,7 @@ module.exports = {
   apps: [
     {
       name: "playable-bot",
-      script: "node_modules/.bin/ts-node",
-      args: "bot.ts",
-      interpreter: "node",
+      script: "dist/bot.js",
       instances: 1,
       autorestart: true,
       watch: false,

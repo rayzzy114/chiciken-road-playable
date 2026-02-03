@@ -7,9 +7,13 @@ import { OrderConfig } from './bot_helpers';
 
 const execAsync = util.promisify(exec);
 
-const TEMPLATE_DIR = path.join(__dirname, 'templates', 'railroad');
-const PREVIEWS_DIR = path.join(__dirname, 'previews');
-const TEMP_DIR = path.join(__dirname, 'temp');
+// Detect if we are in 'dist' or root to resolve paths correctly
+const isDist = __dirname.endsWith('dist');
+const ROOT_DIR = isDist ? path.resolve(__dirname, '..') : __dirname;
+
+const TEMPLATE_DIR = path.join(ROOT_DIR, 'templates', 'railroad');
+const PREVIEWS_DIR = path.join(ROOT_DIR, 'previews');
+const TEMP_DIR = path.join(ROOT_DIR, 'temp');
 const DEPS_CACHE_DIR = path.join(TEMP_DIR, "_deps_cache");
 
 let depsCachePromise: Promise<string> | null = null;
