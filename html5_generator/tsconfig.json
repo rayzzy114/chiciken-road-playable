@@ -6,7 +6,9 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
+    "rootDir": ".",
     "outDir": "./dist"
   },
-  "include": ["bot.ts", "builder.d.ts"]
+  "include": ["**/*.ts"],
+  "exclude": ["dist", "node_modules", "templates", "test", "**/*.test.ts"]
 }
