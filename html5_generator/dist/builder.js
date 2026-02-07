@@ -401,6 +401,26 @@ async function injectRuntimeConfig(htmlPath, runtimeConfig) {
         : `${script}\n${html}`;
     await fs.writeFile(htmlPath, withConfig, "utf-8");
 }
+async function obfuscateInlineScriptsInHtml(htmlPath) {
+    const html = await fs.readFile(htmlPath, "utf-8");
+    let changed = false;
+    const obfuscated = html.replace(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi, (full, attrsRaw, contentRaw) => {
+        const attrs = String(attrsRaw ?? "");
+        const content = String(contentRaw ?? "");
+        if (!content.trim())
+            return full;
+        if (/\bsrc\s*=/.test(attrs))
+            return full;
+        if (/\btype\s*=\s*["']module["']/i.test(attrs))
+            return full;
+        const encoded = Buffer.from(content, "utf-8").toString("base64");
+        changed = true;
+        return `<script${attrs}>(function(){const __b64="${encoded}";(0,eval)(atob(__b64));})();</script>`;
+    });
+    if (changed) {
+        await fs.writeFile(htmlPath, obfuscated, "utf-8");
+    }
+}
 async function validateTemplateResolutionContract(templateConfig, workDir) {
     const checks = TEMPLATE_RESOLUTION_CHECKS[templateConfig.templateDirName];
     if (!checks || checks.length === 0)
@@ -548,6 +568,9 @@ async function performBuild(order) {
         await inlineLocalAssetsInHtml(distPath, workDir);
         await fs.copyFile(distPath, finalPath);
         await injectRuntimeConfig(finalPath, toRuntimeConfig(order.config));
+        if (order.config.isWatermarked) {
+            await obfuscateInlineScriptsInHtml(finalPath);
+        }
         return finalPath;
     }
     catch (e) {

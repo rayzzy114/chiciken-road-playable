@@ -1,28 +1,58 @@
-FROM node:20-slim
+FROM node:20-slim AS base
 
-# Install git for template cloning/pulling if needed
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 python3-pip ca-certificates \
+    && pip3 install --break-system-packages --no-cache-dir uv \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy package files
+FROM base AS deps
 COPY package*.json ./
+COPY pyproject.toml uv.lock ./
 COPY prisma ./prisma/
 
-# Install dependencies
-RUN npm install
-
-# Copy source code
-COPY . .
-
-# Generate Prisma Client
+RUN npm ci
+RUN uv sync --no-dev
 RUN npx prisma generate
 
-# Create necessary directories
-RUN mkdir -p previews library sessions data temp
+FROM deps AS build
+COPY tsconfig.json ./
+COPY src ./src
+RUN npm run build
 
-# Expose admin panel port
-EXPOSE 3000
+COPY bot_py ./bot_py
+COPY templates ./templates
+COPY assets ./assets
+COPY library ./library
+COPY data ./data
 
-# Start the bot using ts-node from src/
-CMD ["npx", "ts-node", "src/bot.ts"]
+RUN npm prune --omit=dev \
+    && mkdir -p previews sessions temp logs
+
+FROM base AS runtime
+ENV PYTHONUNBUFFERED=1
+
+COPY package*.json ./
+COPY pyproject.toml uv.lock ./
+COPY prisma ./prisma/
+
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/.venv ./.venv
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/bot_py ./bot_py
+COPY --from=build /app/templates ./templates
+COPY --from=build /app/assets ./assets
+COPY --from=build /app/library ./library
+COPY --from=build /app/data ./data
+COPY --from=build /app/previews ./previews
+COPY --from=build /app/sessions ./sessions
+COPY --from=build /app/temp ./temp
+COPY --from=build /app/logs ./logs
+
+RUN groupadd -r app \
+    && useradd --no-log-init -r -g app app \
+    && chown -R app:app /app
+
+USER app
+CMD ["/app/.venv/bin/python", "-m", "bot_py.main"]

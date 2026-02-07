@@ -2,7 +2,8 @@ module.exports = {
   apps: [
     {
       name: "playable-bot",
-      script: "dist/bot.js",
+      script: "uv",
+      args: "run python -m bot_py.main",
       instances: 1,
       autorestart: true,
       watch: false,
@@ -18,7 +19,7 @@ module.exports = {
     {
       name: "playable-admin",
       script: "npm",
-      args: "--prefix admin run start",
+      args: "--prefix admin run start -- -p 3001",
       instances: 1,
       autorestart: true,
       watch: false,

@@ -1,0 +1,27 @@
+[project]
+name = "playable-bot-python"
+version = "0.1.0"
+description = "Python Telegram bot for playable generation"
+requires-python = ">=3.11"
+dependencies = [
+    "aiogram>=3.22.0",
+    "aiosqlite>=0.21.0",
+    "httpx>=0.28.1",
+    "python-dotenv>=1.1.1",
+    "sqlalchemy>=2.0.43",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.1.0",
+    "ruff>=0.13.2",
+    "ty>=0.0.1a16",
+]
+
+[tool.ruff]
+line-length = 160
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

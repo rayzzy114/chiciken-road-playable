@@ -1,0 +1,39 @@
+services:
+  playable-bot:
+    container_name: playable-bot
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    restart: unless-stopped
+    init: true
+    volumes:
+      - bot_data:/app/data
+      - bot_sessions:/app/sessions
+      - bot_previews:/app/previews
+      - bot_temp:/app/temp
+      - bot_logs:/app/logs
+
+  playable-admin:
+    container_name: playable-admin
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    depends_on:
+      - playable-bot
+    restart: unless-stopped
+    init: true
+    ports:
+      - "3001:3001"
+    volumes:
+      - bot_data:/app/data
+
+volumes:
+  bot_data:
+  bot_sessions:
+  bot_previews:
+  bot_temp:
+  bot_logs:

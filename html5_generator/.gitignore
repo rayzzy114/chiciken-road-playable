@@ -1,4 +1,7 @@
 temp/
+.venv/
+__pycache__/
+.pytest_cache/
 
 # Local visual/debug artifacts
 previews/playwright_*/

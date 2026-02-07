@@ -1,34 +1,31 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# 1. Create SWAP (1GB RAM is not enough for building playables without swap)
-echo "🚀 Creating 2GB SWAP file..."
-sudo fallocate -l 2G /swapfile
-sudo chmod 600 /swapfile
-sudo mkswap /swapfile
-sudo swapon /swapfile
-echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
-echo "✅ SWAP created!"
+SUDO=""
+if command -v sudo >/dev/null 2>&1; then
+  SUDO="sudo"
+fi
 
-# 2. Install Node.js (using NVM)
-echo "📦 Installing Node.js..."
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-nvm install 20
-nvm use 20
+echo "Installing Docker..."
+curl -fsSL https://get.docker.com | sh
 
-# 3. Install PM2
-echo "⚙️ Installing PM2..."
-npm install -g pm2
+echo "Installing Docker Compose plugin..."
+$SUDO apt-get update
+$SUDO apt-get install -y docker-compose-plugin
 
-# 4. Success
+echo "Adding current user to docker group..."
+$SUDO usermod -aG docker "$USER" || true
+
+COMPOSE_CMD="docker compose"
+if ! docker compose version >/dev/null 2>&1 && command -v docker-compose >/dev/null 2>&1; then
+  COMPOSE_CMD="docker-compose"
+fi
+
 echo "------------------------------------------------"
-echo "✨ VPS Setup Complete!"
-echo "Next steps:"
-echo "1. Upload your code to the server"
-echo "2. Run: cd html5_generator && npm install && npm --prefix admin install"
-echo "3. Run: npm run build:all"
-echo "4. Run: npx prisma db push"
-echo "5. Run: mkdir -p logs && pm2 start ecosystem.config.cjs"
-echo "6. Run: pm2 save && pm2 startup"
+echo "VPS Docker setup complete."
+echo "Re-login to apply docker group changes, then run:"
+echo "1) cp .env.example .env"
+echo "2) edit .env"
+echo "3) ${COMPOSE_CMD} up -d --build"
+echo "4) ${COMPOSE_CMD} logs -f playable-bot playable-admin"
 echo "------------------------------------------------"
