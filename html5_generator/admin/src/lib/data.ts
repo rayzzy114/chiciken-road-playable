@@ -7,6 +7,17 @@ type CategoryDiscountRow = {
   percent: number;
 };
 
+type LatestUserRow = {
+  id: bigint;
+  username: string | null;
+  firstName: string | null;
+  walletBalance: number;
+  subscriptionEnd: Date | null;
+  createdAt: Date;
+  referrerId: bigint | null;
+  _count: { orders: number };
+};
+
 export async function getAdminStats() {
   const usersCount = await prisma.user.count();
   const revenueAgg = await prisma.order.aggregate({
@@ -47,7 +58,7 @@ export async function getRecentOrders(limit = 20) {
 }
 
 export async function getLatestUsers(limit = 10) {
-  const users = await prisma.user.findMany({
+  const users = (await prisma.user.findMany({
     take: limit,
     orderBy: { createdAt: "desc" },
     include: {
@@ -59,10 +70,10 @@ export async function getLatestUsers(limit = 10) {
         },
       },
     },
-  });
+  })) as LatestUserRow[];
 
   return serialize(
-    users.map((u) => ({
+    users.map((u: LatestUserRow) => ({
       ...u,
       paid_orders: u._count.orders,
     }))
