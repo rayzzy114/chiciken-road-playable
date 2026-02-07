@@ -1,0 +1,15 @@
+temp/
+
+# Local visual/debug artifacts
+previews/playwright_*/
+previews/*.png
+previews/*_log.txt
+previews/*dumpdom*
+previews/PREVIEW_audit*.html
+previews/PREVIEW_manual_*.html
+previews/PREVIEW_ord_*.html
+previews/PREVIEW_prodcheck_*.html
+previews/PREVIEW_runtime_injection_*.html
+previews/PREVIEW_smoke_*.html
+previews/PREVIEW_verify_*.html
+previews/PREVIEW_check_visual_*.html

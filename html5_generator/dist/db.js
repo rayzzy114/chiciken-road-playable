@@ -1,9 +1,7 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.DB = exports.prisma = void 0;
-const client_1 = require("@prisma/client");
-exports.prisma = new client_1.PrismaClient();
-exports.DB = {
+import { PrismaClient } from '@prisma/client';
+export const prisma = new PrismaClient();
+const clampDiscount = (value) => Math.max(0, Math.min(90, Math.trunc(value)));
+export const DB = {
     /**
      * Safely serializes objects containing BigInt (e.g. Prisma models)
      * to objects with strings for JSON/EJS compatibility.
@@ -13,7 +11,7 @@ exports.DB = {
     },
     // --- USERS ---
     upsertUser: async (id, username, first_name) => {
-        await exports.prisma.user.upsert({
+        await prisma.user.upsert({
             where: { id: BigInt(id) },
             update: { username, firstName: first_name },
             create: { id: BigInt(id), username, firstName: first_name }
@@ -22,13 +20,13 @@ exports.DB = {
     setReferrer: async (userId, referrerId) => {
         if (userId === referrerId)
             return false;
-        const user = await exports.prisma.user.findUnique({ where: { id: BigInt(userId) } });
+        const user = await prisma.user.findUnique({ where: { id: BigInt(userId) } });
         // Only set if not already set
         if (user && !user.referrerId) {
             // Check if referrer exists
-            const refExists = await exports.prisma.user.findUnique({ where: { id: BigInt(referrerId) } });
+            const refExists = await prisma.user.findUnique({ where: { id: BigInt(referrerId) } });
             if (refExists) {
-                await exports.prisma.user.update({
+                await prisma.user.update({
                     where: { id: BigInt(userId) },
                     data: { referrerId: BigInt(referrerId) }
                 });
@@ -39,13 +37,13 @@ exports.DB = {
     },
     getUserStats: async (id) => {
         const userId = BigInt(id);
-        const user = await exports.prisma.user.findUnique({ where: { id: userId } });
+        const user = await prisma.user.findUnique({ where: { id: userId } });
         // Count paid orders
-        const ordersCount = await exports.prisma.order.count({
+        const ordersCount = await prisma.order.count({
             where: { userId, status: { startsWith: 'paid' } }
         });
         // Count referrals
-        const referralsCount = await exports.prisma.user.count({
+        const referralsCount = await prisma.user.count({
             where: { referrerId: userId }
         });
         return {
@@ -56,23 +54,23 @@ exports.DB = {
         };
     },
     addReferralReward: async (userId, amount) => {
-        const user = await exports.prisma.user.findUnique({
+        const user = await prisma.user.findUnique({
             where: { id: BigInt(userId) },
             select: { referrerId: true }
         });
         if (user?.referrerId) {
             const reward = amount * 0.22;
-            await exports.prisma.user.update({
+            await prisma.user.update({
                 where: { id: user.referrerId },
                 data: { walletBalance: { increment: reward } }
             });
             // Log for admin
-            await exports.DB.logAction(Number(user.referrerId), 'referral_reward', `Received $${reward} from user ${userId}`);
+            await DB.logAction(Number(user.referrerId), 'referral_reward', `Received $${reward} from user ${userId}`);
         }
     },
     // --- ORDERS ---
     createOrder: async (orderId, userId, game, theme, config) => {
-        await exports.prisma.order.create({
+        await prisma.order.create({
             data: {
                 orderId,
                 userId: BigInt(userId),
@@ -83,13 +81,34 @@ exports.DB = {
         });
     },
     markPaid: async (orderId, status, amount, discount) => {
-        await exports.prisma.order.update({
+        await prisma.order.update({
             where: { orderId },
             data: { status, amount, discountApplied: discount }
         });
     },
+    setOrderStatus: async (orderId, status) => {
+        await prisma.order.update({
+            where: { orderId },
+            data: { status }
+        });
+    },
+    updateOrderConfig: async (orderId, patch) => {
+        const order = await prisma.order.findUnique({
+            where: { orderId },
+            select: { configJson: true }
+        });
+        if (!order)
+            throw new Error("ORDER_NOT_FOUND");
+        const currentConfig = JSON.parse(order.configJson);
+        const nextConfig = { ...currentConfig, ...patch };
+        await prisma.order.update({
+            where: { orderId },
+            data: { configJson: JSON.stringify(nextConfig) }
+        });
+        return nextConfig;
+    },
     finalizePaidOrder: async (orderId, userId, status, amount, discount) => {
-        return exports.prisma.$transaction(async (tx) => {
+        return prisma.$transaction(async (tx) => {
             const order = await tx.order.findUnique({
                 where: { orderId },
                 select: { userId: true, status: true }
@@ -119,14 +138,32 @@ exports.DB = {
             return { newBalance: user.walletBalance - amount };
         });
     },
+    finalizeExternalPaidOrder: async (orderId, userId, status, amount, discount) => {
+        return prisma.$transaction(async (tx) => {
+            const order = await tx.order.findUnique({
+                where: { orderId },
+                select: { userId: true, status: true }
+            });
+            if (!order)
+                throw new Error("ORDER_NOT_FOUND");
+            if (order.userId !== BigInt(userId))
+                throw new Error("ORDER_USER_MISMATCH");
+            if (order.status.startsWith("paid"))
+                throw new Error("ORDER_ALREADY_PAID");
+            await tx.order.update({
+                where: { orderId },
+                data: { status, amount, discountApplied: discount }
+            });
+        });
+    },
     getOrder: async (orderId) => {
-        const order = await exports.prisma.order.findUnique({ where: { orderId } });
+        const order = await prisma.order.findUnique({ where: { orderId } });
         return order ? { ...order, config: JSON.parse(order.configJson) } : null;
     },
     // --- LOGS ---
     logAction: async (userId, action, details = '') => {
         try {
-            await exports.prisma.log.create({
+            await prisma.log.create({
                 data: {
                     userId: BigInt(userId),
                     action,
@@ -138,26 +175,53 @@ exports.DB = {
             console.error("Log error", e);
         }
     },
+    getLastLogByAction: async (userId, action) => {
+        return prisma.log.findFirst({
+            where: {
+                userId: BigInt(userId),
+                action,
+            },
+            orderBy: {
+                createdAt: "desc",
+            },
+        });
+    },
     // --- ASSETS ---
     getAsset: async (key) => {
-        const entry = await exports.prisma.assetCache.findUnique({ where: { key } });
+        const entry = await prisma.assetCache.findUnique({ where: { key } });
         return entry?.fileId;
     },
     setAsset: async (key, fileId) => {
-        await exports.prisma.assetCache.upsert({
+        await prisma.assetCache.upsert({
             where: { key },
             update: { fileId },
             create: { key, fileId }
         });
     },
+    // --- CATEGORY DISCOUNTS ---
+    getCategoryDiscount: async (category) => {
+        const entry = await prisma.categoryDiscount.findUnique({ where: { category } });
+        if (!entry)
+            return 0;
+        return clampDiscount(entry.percent);
+    },
+    setCategoryDiscount: async (category, percent) => {
+        const normalized = clampDiscount(percent);
+        await prisma.categoryDiscount.upsert({
+            where: { category },
+            update: { percent: normalized },
+            create: { category, percent: normalized }
+        });
+        return normalized;
+    },
     // --- ADMIN ---
     getAdminStats: async () => {
-        const users = await exports.prisma.user.count();
-        const revenueAgg = await exports.prisma.order.aggregate({
+        const users = await prisma.user.count();
+        const revenueAgg = await prisma.order.aggregate({
             _sum: { amount: true },
             where: { status: { startsWith: 'paid' } }
         });
-        const paidOrders = await exports.prisma.order.count({ where: { status: { startsWith: 'paid' } } });
+        const paidOrders = await prisma.order.count({ where: { status: { startsWith: 'paid' } } });
         const conversion = users > 0 ? ((paidOrders / users) * 100).toFixed(2) : 0;
         return {
             users,
@@ -167,7 +231,7 @@ exports.DB = {
         };
     },
     getLastLogs: async (limit = 50) => {
-        return exports.prisma.log.findMany({
+        return prisma.log.findMany({
             take: limit,
             orderBy: { createdAt: 'desc' },
             include: { user: { select: { username: true, firstName: true } } }
@@ -175,7 +239,7 @@ exports.DB = {
     },
     getAllUsers: async (page = 1, pageSize = 50) => {
         const skip = (page - 1) * pageSize;
-        const users = await exports.prisma.user.findMany({
+        const users = await prisma.user.findMany({
             skip,
             take: pageSize,
             orderBy: { createdAt: 'desc' },
@@ -192,7 +256,7 @@ exports.DB = {
         }));
     },
     getAllOrders: async () => {
-        return exports.prisma.order.findMany({
+        return prisma.order.findMany({
             orderBy: { createdAt: 'desc' },
             include: { user: { select: { username: true } } }
         });

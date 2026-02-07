@@ -2,15 +2,19 @@
   "name": "html5-playable-bot-grammy",
   "version": "3.0.1",
   "description": "Telegram bot for generating Playable Ads (GrammY + Prisma ORM)",
-  "main": "bot.ts",
+  "type": "module",
+  "main": "src/bot.ts",
   "scripts": {
-    "start": "ts-node bot.ts",
+    "start": "node dist/bot.js",
+    "start:src": "node --loader ts-node/esm --experimental-specifier-resolution=node src/bot.ts",
     "build": "tsc -p tsconfig.json",
-    "start:prod": "node dist/bot.js",
-    "test": "node ./node_modules/vitest/vitest.mjs run",
+    "build:all": "npm run build && npm --prefix admin run build",
+    "test": "vitest run",
     "db:push": "prisma db push",
     "postinstall": "prisma generate",
-    "dev": "nodemon bot.ts"
+    "dev:bot": "nodemon --watch src --ext ts,json --exec \"node --loader ts-node/esm --experimental-specifier-resolution=node\" src/bot.ts",
+    "dev:admin": "npm --prefix admin run dev",
+    "dev": "concurrently -k -n bot,admin -c cyan,magenta \"npm run dev:bot\" \"npm run dev:admin\""
   },
   "dependencies": {
     "@grammyjs/conversations": "^2.1.1",
@@ -33,6 +37,7 @@
     "prisma": "^6.19.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.7.3",
-    "vitest": "^2.1.9"
+    "vitest": "^2.1.9",
+    "concurrently": "^9.2.1"
   }
 }

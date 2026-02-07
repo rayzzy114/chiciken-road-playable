@@ -1,5 +1,9 @@
 {
 	"config": {
-		"game": "railroad"
-	}
+		"game": "olympus",
+		"themeId": "gate_of_olympus",
+		"startingBalance": 1000,
+		"clickUrl": "https://example.com/"
+	},
+	"previewInProgress": false
 }

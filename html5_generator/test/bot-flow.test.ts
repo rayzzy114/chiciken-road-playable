@@ -1,9 +1,9 @@
-import { describe, it, beforeEach, afterEach, expect, vi } from "vitest";
+﻿import { describe, it, beforeEach, afterEach, expect, vi } from "vitest";
 import { MemorySessionStorage } from "grammy";
 import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
-import { CATEGORIES, GAMES } from "../constants";
+import { CATEGORIES, GAMES } from "../src/constants";
 
 type OrderRecord = {
     orderId: string;
@@ -58,9 +58,15 @@ const mockState = vi.hoisted(() => {
             order.discountApplied = discount;
             return { newBalance: dbState.balance };
         }),
+        setOrderStatus: vi.fn(async (orderId: string, status: string) => {
+            const order = dbState.orders.get(orderId);
+            if (!order) throw new Error("ORDER_NOT_FOUND");
+            order.status = status;
+        }),
         addReferralReward: vi.fn(async () => undefined),
         getAsset: vi.fn(async () => null),
-        setAsset: vi.fn(async () => undefined)
+        setAsset: vi.fn(async () => undefined),
+        getCategoryDiscount: vi.fn(async () => 0)
     };
 
     const prisma = {
@@ -83,17 +89,17 @@ const mockState = vi.hoisted(() => {
     return { dbState, DB, prisma, state, generatePlayable };
 });
 
-vi.mock("../builder", () => ({
+vi.mock("../src/builder.js", () => ({
     generatePlayable: mockState.generatePlayable,
     cleanupTemp: vi.fn(async () => undefined)
 }));
 
-vi.mock("../db", () => ({
+vi.mock("../src/db.js", () => ({
     DB: mockState.DB,
     prisma: mockState.prisma
 }));
 
-vi.mock("../config", () => ({
+vi.mock("../src/config.js", () => ({
     CONFIG: {
         BOT_TOKEN: "test-token",
         ADMIN_USER: "admin",
@@ -102,11 +108,11 @@ vi.mock("../config", () => ({
         PRICES: { single: 100, sub: 200 },
         ADMIN_TELEGRAM_ID: 999,
         WALLETS: { usdt_trc20: "T", btc: "B" },
-        THEMES: { chicken_farm: "🐔 Ферма" }
+        THEMES: { chicken_farm: "рџђ” Р¤РµСЂРјР°" }
     }
 }));
 
-import { createBot, registerHandlers } from "../bot";
+import { createBot, registerHandlers } from "../src/bot";
 
 type ApiCall = { method: string; payload: any };
 
@@ -232,11 +238,12 @@ describe("bot main flow", () => {
         await bot.handleUpdate(makeCallbackUpdate(updateId++, userId, GAMES.RAILROAD.ID));
         await bot.handleUpdate(makeCallbackUpdate(updateId++, userId, "buy_check_railroad"));
         await bot.handleUpdate(makeCallbackUpdate(updateId++, userId, "geo_en_usd"));
+        await bot.handleUpdate(makeMessageUpdate(updateId++, userId, "https://example.com/cta-railroad"));
 
         // Ensure session is populated even if conversation middleware didn't persist it
         const key = String(userId);
         const existing = await storage.read(key);
-        if (!existing || !existing.config?.themeId) {
+        if (!existing || !existing.config?.themeId || !existing.config?.clickUrl) {
             await storage.write(key, {
                 config: {
                     game: "railroad",
@@ -244,7 +251,8 @@ describe("bot main flow", () => {
                     language: "en",
                     currency: "$",
                     startingBalance: 1000,
-                    geoId: "en_usd"
+                    geoId: "en_usd",
+                    clickUrl: "https://example.com/cta-railroad"
                 }
             });
         }
@@ -262,6 +270,63 @@ describe("bot main flow", () => {
         expect(mockState.dbState.balance).toBe(900);
     });
 
+    it("stores Russian main menu labels in source without mojibake", async () => {
+        const sourcePath = path.resolve(process.cwd(), "src", "bot.ts");
+        const source = await fs.promises.readFile(sourcePath, "utf-8");
+
+        expect(source).toContain('text("🎮 Заказать плеебл", "order")');
+        expect(source).toContain('text("👤 Профиль", "profile")');
+        expect(source).toContain('text("🤝 Реферальная система", "ref_system")');
+    });
+
+    it("orders Gate of Olympus with GEO and receives preview/final files", async () => {
+        const storage = new MemorySessionStorage<any>();
+        const bot = createBot({
+            sessionStorage: storage,
+            botInfo: { id: 1, is_bot: true, first_name: "Test", username: "testbot" },
+            client: createTestClient(apiCalls)
+        });
+        registerHandlers(bot);
+
+        const userId = 102;
+        let updateId = 1;
+
+        await bot.handleUpdate(makeMessageUpdate(updateId++, userId, "/start"));
+        await bot.handleUpdate(makeCallbackUpdate(updateId++, userId, "order"));
+        await bot.handleUpdate(makeCallbackUpdate(updateId++, userId, CATEGORIES.SLOTS));
+        await bot.handleUpdate(makeCallbackUpdate(updateId++, userId, GAMES.OLYMPUS.ID));
+        await bot.handleUpdate(makeCallbackUpdate(updateId++, userId, "buy_check_olympus"));
+        await bot.handleUpdate(makeCallbackUpdate(updateId++, userId, "geo_pt_brl"));
+        await bot.handleUpdate(makeMessageUpdate(updateId++, userId, "https://example.com/cta-olympus"));
+
+        const key = String(userId);
+        const existing = await storage.read(key);
+        if (!existing || !existing.config?.themeId || !existing.config?.clickUrl) {
+            await storage.write(key, {
+                config: {
+                    game: "olympus",
+                    themeId: "gate_of_olympus",
+                    language: "pt",
+                    currency: "R$",
+                    startingBalance: 1000,
+                    geoId: "pt_brl",
+                    clickUrl: "https://example.com/cta-olympus"
+                }
+            });
+        }
+        await bot.handleUpdate(makeCallbackUpdate(updateId++, userId, "gen_preview"));
+
+        const orderId = `ord_${userId}_1700000000000`;
+        expect(mockState.DB.createOrder).toHaveBeenCalledWith(orderId, userId, "olympus", expect.any(String), expect.any(Object));
+
+        await bot.handleUpdate(makeCallbackUpdate(updateId++, userId, `pay_single_${orderId}`));
+
+        const sendDocuments = apiCalls.filter(c => c.method === "sendDocument");
+        expect(sendDocuments.length).toBeGreaterThanOrEqual(2);
+        expect(mockState.generatePlayable).toHaveBeenCalledTimes(2);
+        expect(mockState.DB.finalizePaidOrder).toHaveBeenCalled();
+    });
+
     it("blocks purchase when balance is too low", async () => {
         mockState.dbState.balance = 10;
         const bot = createBot({
@@ -277,6 +342,64 @@ describe("bot main flow", () => {
         await bot.handleUpdate(makeCallbackUpdate(updateId++, userId, "buy_check_railroad"));
 
         const lastSend = apiCalls.find(c => c.method === "sendMessage");
-        expect(lastSend?.payload?.text).toContain("Недостаточно средств");
+        expect(typeof lastSend?.payload?.text).toBe("string");
+        expect(lastSend?.payload?.text).toContain("$10");
+        expect(lastSend?.payload?.text).toContain("$100");
+    });
+
+    it("cancels payment and blocks further payment attempts for the same order", async () => {
+        const storage = new MemorySessionStorage<any>();
+        const bot = createBot({
+            sessionStorage: storage,
+            botInfo: { id: 1, is_bot: true, first_name: "Test", username: "testbot" },
+            client: createTestClient(apiCalls)
+        });
+        registerHandlers(bot);
+
+        const userId = 103;
+        let updateId = 1;
+
+        await bot.handleUpdate(makeMessageUpdate(updateId++, userId, "/start"));
+        await bot.handleUpdate(makeCallbackUpdate(updateId++, userId, "order"));
+        await bot.handleUpdate(makeCallbackUpdate(updateId++, userId, CATEGORIES.CHICKEN));
+        await bot.handleUpdate(makeCallbackUpdate(updateId++, userId, GAMES.RAILROAD.ID));
+        await bot.handleUpdate(makeCallbackUpdate(updateId++, userId, "buy_check_railroad"));
+        await bot.handleUpdate(makeCallbackUpdate(updateId++, userId, "geo_en_usd"));
+        await bot.handleUpdate(makeMessageUpdate(updateId++, userId, "https://example.com/cta-cancel"));
+
+        const key = String(userId);
+        const existing = await storage.read(key);
+        if (!existing || !existing.config?.themeId || !existing.config?.clickUrl) {
+            await storage.write(key, {
+                config: {
+                    game: "railroad",
+                    themeId: "chicken_farm",
+                    language: "en",
+                    currency: "$",
+                    startingBalance: 1000,
+                    geoId: "en_usd",
+                    clickUrl: "https://example.com/cta-cancel"
+                }
+            });
+        }
+
+        await bot.handleUpdate(makeCallbackUpdate(updateId++, userId, "gen_preview"));
+
+        const orderId = `ord_${userId}_1700000000000`;
+        await bot.handleUpdate(makeCallbackUpdate(updateId++, userId, `payment_cancel_${orderId}`));
+        await bot.handleUpdate(makeCallbackUpdate(updateId++, userId, `pay_single_${orderId}`));
+
+        expect(mockState.DB.setOrderStatus).toHaveBeenCalledWith(orderId, "cancelled");
+        expect(mockState.dbState.orders.get(orderId)?.status).toBe("cancelled");
+        expect(mockState.DB.finalizePaidOrder).not.toHaveBeenCalled();
+
+        const cancelMessages = apiCalls.filter(
+            (call) =>
+                (call.method === "editMessageText" || call.method === "sendMessage") &&
+                typeof call.payload?.text === "string" &&
+                call.payload.text.includes("Оплата по этому заказу отменена"),
+        );
+        expect(cancelMessages.length).toBeGreaterThan(0);
     });
 });
+

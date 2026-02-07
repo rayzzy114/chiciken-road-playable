@@ -11,7 +11,7 @@ describe("telegram api integration", () => {
 
   it("can call getMe (and optionally send a message)", async () => {
     process.env.BOT_TOKEN = token;
-    const { createBot } = await import("../bot");
+    const { createBot } = await import("../src/bot");
     const bot = createBot();
 
     const me = await bot.api.getMe();

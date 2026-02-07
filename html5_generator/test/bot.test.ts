@@ -8,8 +8,8 @@ import {
     parseBalanceInput,
     parsePayCallback,
     sanitizeCurrencyInput,
-} from "../bot_helpers";
-import { GAMES, CATEGORIES } from "../constants";
+} from "../src/bot_helpers";
+import { GAMES, CATEGORIES } from "../src/constants";
 
 describe("bot_helpers", () => {
     it("constants are defined correctly", () => {

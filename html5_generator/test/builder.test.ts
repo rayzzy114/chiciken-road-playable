@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generatePlayable } from "../builder";
+import { generatePlayable } from "../src/builder";
 
 describe("builder", () => {
     it("creates a preview file for a basic order", async () => {

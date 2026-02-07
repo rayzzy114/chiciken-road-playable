@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Playable Ad</title>
+    <style>
+        /* Font loaded via document.fonts.load in main.js - no external requests */
+        body, html { 
+            margin: 0; 
+            padding: 0; 
+            width: 100%; 
+            height: 100%; 
+            background-color: #000; 
+            overflow: hidden; 
+        }
+        canvas { 
+            display: block; 
+        }
+    </style>
+</head>
+<body>
+    <script>
+        // AppLovin requires MRAID v2.0 API for click-through redirects
+        // MRAID SDK will be injected by AppLovin wrapper before page load
+        // The game code uses mraid.open() for CTA clicks (see main.js)
+    </script>
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>

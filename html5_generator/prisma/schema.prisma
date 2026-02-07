@@ -35,6 +35,14 @@ model AssetCache {
   @@map("asset_cache")
 }
 
+model CategoryDiscount {
+  category String   @id
+  percent  Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@map("category_discounts")
+}
+
 model Order {
   orderId         String   @id
   userId          BigInt

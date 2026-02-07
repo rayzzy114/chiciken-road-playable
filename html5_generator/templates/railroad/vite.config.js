@@ -1,12 +1,33 @@
-import { defineConfig } from 'vite';
-import { viteSingleFile } from 'vite-plugin-singlefile';
+import { defineConfig } from "vite";
+import { viteSingleFile } from "vite-plugin-singlefile";
+
+const ensureHtmlString = () => ({
+  name: "ensure-html-string",
+  enforce: "pre",
+  generateBundle(_, bundle) {
+    Object.values(bundle).forEach((chunk) => {
+      if (chunk.type === "asset" && chunk.fileName.endsWith(".html")) {
+        if (chunk.source != null && typeof chunk.source !== "string") {
+          chunk.source = chunk.source.toString();
+        }
+      }
+    });
+  },
+});
 
 export default defineConfig({
-  plugins: [viteSingleFile()],
+  plugins: [ensureHtmlString(), viteSingleFile()],
+  server: {
+    allowedHosts: ["nonpredictive-boris-alarmingly.ngrok-free.dev"],
+  },
   build: {
-    assetsInlineLimit: 100000000, // Force inline everything
-    chunkSizeWarningLimit: 100000000,
+    target: "es2018",
+    assetsInlineLimit: 100_000_000,
     cssCodeSplit: false,
-    brotliSize: false,
+    rollupOptions: {
+      output: {
+        inlineDynamicImports: true,
+      },
+    },
   },
 });

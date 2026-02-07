@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>gates of olympus playable</title>
+  <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+  <div id="wrapper">
+    <div id="game">
+      <img id="bg" class="layer bg" alt="background">
+      <img id="cloud5" class="layer cloud cloud-5" alt="cloud 5">
+      <img id="cloud6" class="layer cloud cloud-6" alt="cloud 6">
+      <canvas id="reels"></canvas>
+      <svg id="winLines" class="win-lines hidden" width="800" height="860" viewBox="0 0 800 860" aria-hidden="true">
+        <path id="winLinePath" d="M 0 0 L 0 0" />
+      </svg>
+      <div id="reelShine" class="layer reel-shine"></div>
+      <div id="flashFx" class="layer flash-fx"></div>
+      <div id="sparkFx" class="layer spark-fx"></div>
+      <div id="vignette" class="layer vignette hidden"></div>
+      <div id="clickSpark" class="click-spark"></div>
+      <div id="handCue" class="layer hand-cue hidden"></div>
+      <img id="zeusIdle" class="layer zeus idle" alt="zeus idle">
+      <img id="zeusCast" class="layer zeus cast hidden" alt="zeus cast">
+      <img id="zeusFx" class="layer zeus-fx hidden" alt="zeus fx">
+      <img id="logo" class="layer logo" alt="logo">
+
+      <div id="hud" class="layer hud">
+        <div id="title" class="title">battle for the power of olympus</div>
+        <div class="subtitle">press spin and try your luck</div>
+        <div class="balance-row">
+          <div class="label">balance</div>
+          <div id="balance" class="value">$1000</div>
+        </div>
+        <div class="win-row">
+          <div class="label">last win</div>
+          <div id="win" class="value">$0</div>
+        </div>
+      </div>
+
+      <button id="spinBtn" class="cta spin">spin</button>
+
+      <div id="megaOverlay" class="overlay hidden">
+        <img id="overlayFx" alt="overlay" class="overlay-fx">
+        <div id="megaBurstTL" class="mega-burst" aria-hidden="true"></div>
+        <div id="megaBurstTR" class="mega-burst" aria-hidden="true"></div>
+        <div id="megaBurstBL" class="mega-burst" aria-hidden="true"></div>
+        <div id="megaBurstBR" class="mega-burst" aria-hidden="true"></div>
+        <div class="mega-text">mega win</div>
+        <div id="megaWinValue" class="mega-value">$1000</div>
+      </div>
+
+      <div id="bonusPopup" class="overlay hidden">
+        <div class="popup">
+          <div class="bonus-title">bonus up to 200% + 250fs</div>
+          <button id="bonusBtn" class="cta bonus">get bonus</button>
+          <button id="keepPlayingBtn" class="cta ghost">keep playing</button>
+        </div>
+      </div>
+
+      <div id="endcard" class="overlay hidden">
+        <div class="endcard-inner">
+          <div class="endcard-title">play now</div>
+          <button id="installBtn" class="cta install">install</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button id="copyLayoutBtn" class="layout-copy-btn hidden" type="button">COPY LAYOUT</button>
+  <button id="muteBtn" class="audio-mute-btn" type="button" aria-label="Toggle sound">SOUND</button>
+
+  <div id="watermark" class="watermark">made by @rwbrr</div>
+  <div id="watermark2" class="watermark watermark-2">made by @rwbrr</div>
+  <div id="watermark3" class="watermark watermark-3">made by @rwbrr</div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+  <script src="scripts/audio-manager.js"></script>
+  <script src="scripts/manifest.js"></script>
+  <script src="scripts/game.js"></script>
+</body>
+</html>
+

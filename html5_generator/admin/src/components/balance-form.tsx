@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus } from "lucide-react";
@@ -10,6 +11,7 @@ interface BalanceFormProps {
 }
 
 export function BalanceForm({ userId }: BalanceFormProps) {
+  const router = useRouter();
   const [amount, setAmount] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -27,8 +29,7 @@ export function BalanceForm({ userId }: BalanceFormProps) {
       });
       if (res.ok) {
         setAmount("");
-        // Ideally trigger a refresh of the page or data
-        window.location.reload();
+        router.refresh();
       }
     } catch (error) {
       console.error("Failed to add balance", error);

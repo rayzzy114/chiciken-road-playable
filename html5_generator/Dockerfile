@@ -24,5 +24,5 @@ RUN mkdir -p previews library sessions data temp
 # Expose admin panel port
 EXPOSE 3000
 
-# Start the bot using ts-node
-CMD ["npx", "ts-node", "bot.ts"]
+# Start the bot using ts-node from src/
+CMD ["npx", "ts-node", "src/bot.ts"]

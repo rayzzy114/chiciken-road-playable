@@ -1,4 +1,6 @@
 import { prisma, serialize } from "./prisma";
+import { Prisma } from "@prisma/client";
+import { PLAYABLE_CATEGORIES, normalizeDiscountPercent } from "./playable-categories";
 
 export async function getAdminStats() {
   const usersCount = await prisma.user.count();
@@ -76,4 +78,17 @@ export async function getRecentLogs(limit = 50) {
     },
   });
   return serialize(logs);
+}
+
+export async function getCategoryDiscounts() {
+  const rows = await prisma.$queryRaw<Array<{ category: string; percent: number }>>(
+    Prisma.sql`SELECT category, percent FROM category_discounts`,
+  );
+  const map = new Map(rows.map((row) => [row.category, normalizeDiscountPercent(row.percent)]));
+
+  return PLAYABLE_CATEGORIES.map((category) => ({
+    category: category.key,
+    label: category.label,
+    percent: map.get(category.key) ?? 0,
+  }));
 }

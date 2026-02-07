@@ -1,10 +1,13 @@
-import { getAdminStats, getRecentOrders, getLatestUsers, getRecentLogs } from "@/lib/data";
+import { getAdminStats, getRecentOrders, getLatestUsers, getRecentLogs, getCategoryDiscounts } from "@/lib/data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { BalanceForm } from "@/components/balance-form";
+import { AdminAutoRefresh } from "@/components/admin-auto-refresh";
+import { CategoryDiscountsPanel } from "@/components/category-discounts-panel";
+import { BroadcastPanel } from "@/components/broadcast-panel";
 import { Users, DollarSign, ShoppingCart, TrendingUp, History, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -16,9 +19,11 @@ export default async function AdminDashboard() {
   const orders = await getRecentOrders(15);
   const users = await getLatestUsers(10);
   const logs = await getRecentLogs(50);
+  const discounts = await getCategoryDiscounts();
 
   return (
     <div className="flex flex-col gap-8 p-8 max-w-7xl mx-auto">
+      <AdminAutoRefresh intervalMs={5000} />
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Joystick Admin</h1>
@@ -72,6 +77,25 @@ export default async function AdminDashboard() {
           <CardContent>
             <div className="text-2xl font-bold">{stats.conversion}%</div>
             <p className="text-xs text-muted-foreground">Users to paid orders</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Скидки по категориям</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CategoryDiscountsPanel initialRows={discounts} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Рассылка всем пользователям</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <BroadcastPanel />
           </CardContent>
         </Card>
       </div>
