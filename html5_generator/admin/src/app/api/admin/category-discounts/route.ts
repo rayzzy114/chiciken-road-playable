@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
 import { isPlayableCategory, normalizeDiscountPercent } from "@/lib/playable-categories";
 
 export async function GET() {
-  const rows = (await prisma.$queryRaw(
-    Prisma.sql`SELECT category, percent FROM category_discounts`,
-  )) as Array<{ category: string; percent: number }>;
+  const rows = (await prisma.$queryRaw`SELECT category, percent FROM category_discounts`) as Array<{
+    category: string;
+    percent: number;
+  }>;
   return NextResponse.json(
     rows.map((row) => ({
       category: row.category,
@@ -25,16 +25,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid category" }, { status: 400 });
     }
 
-    await prisma.$executeRaw(
-      Prisma.sql`
-        INSERT INTO category_discounts (category, percent)
-        VALUES (${category}, ${percent})
-        ON CONFLICT(category) DO UPDATE SET percent = excluded.percent
-      `,
-    );
-    const rows = (await prisma.$queryRaw(
-      Prisma.sql`SELECT category, percent FROM category_discounts WHERE category = ${category}`,
-    )) as Array<{ category: string; percent: number }>;
+    await prisma.$executeRaw`
+      INSERT INTO category_discounts (category, percent)
+      VALUES (${category}, ${percent})
+      ON CONFLICT(category) DO UPDATE SET percent = excluded.percent
+    `;
+    const rows = (await prisma.$queryRaw`
+      SELECT category, percent FROM category_discounts WHERE category = ${category}
+    `) as Array<{ category: string; percent: number }>;
     const updated = rows[0] ?? { category, percent };
 
     return NextResponse.json({
